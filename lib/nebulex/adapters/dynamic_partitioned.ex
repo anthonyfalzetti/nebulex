@@ -577,6 +577,20 @@ defmodule Nebulex.Adapters.DynamicPartitioned do
 
   ## Nebulex.Adapter.Queryable
 
+  defspan all_on_partition(adapter_meta, opts) do
+    rpc_call(
+      adapter_meta.task_sup,
+      node(),
+      __MODULE__,
+      :eval_stream,
+      [adapter_meta, nil, [return: {:key, :value}]],
+      opts
+    )
+    |> IO.inspect()
+
+    IO.puts("#{inspect(adapter_meta)} all_on_partition")
+  end
+
   @impl true
   defspan execute(adapter_meta, operation, query, opts) do
     reducer =
@@ -824,6 +838,8 @@ defmodule Nebulex.Adapters.DynamicPartitioned.Bootstrap do
     # Ensure leaving the cluster when the cache stops
     :ok = Cluster.leave(adapter_meta.name)
 
+    Nebulex.Adapters.DynamicPartitioned.all_on_partition(adapter_meta, [])
+    IO.puts("Stopping on #{inspect({node()})}")
     # Bootstrap stopped or terminated
     :ok = dispatch_telemetry_event(:stopped, adapter_meta, %{reason: reason})
   end
