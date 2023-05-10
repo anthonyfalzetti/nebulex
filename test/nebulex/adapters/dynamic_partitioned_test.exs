@@ -206,6 +206,28 @@ defmodule Nebulex.Adapters.DynamicPartitionedTest do
         assert node() in nodes
       end)
     end
+
+    test "node leaves and data is still accessable", %{name: name, cluster: cluster} do
+      nodes = [:"node1@127.0.0.1", :"node2@127.0.0.1"]
+      Nebulex.Cluster.spawn(nodes)
+
+      alias Nebulex.NodeCase
+      alias Nebulex.TestCache.Partitioned
+
+      # start distributed caches
+      {:ok, dist} = Partitioned.start_link(primary: [backend: :shards])
+
+      node_pid_list =
+        NodeCase.start_caches(Node.list(), [{Partitioned, primary: [backend: :shards]}])
+
+      # stop caches
+      if Process.alive?(dist), do: Supervisor.stop(dist)
+      NodeCase.stop_caches(node_pid_list)
+
+      # Not sure about setup
+      # Figure out how to put data into the cache
+      # Figure out how to inspect the cache
+    end
   end
 
   describe "rpc" do
