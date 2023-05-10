@@ -76,6 +76,15 @@ defmodule Nebulex.TestCache do
     use Nebulex.TestCache.Common
   end
 
+  defmodule DynamicPartitioned do
+    @moduledoc false
+    use Nebulex.Cache,
+      otp_app: :nebulex,
+      adapter: Nebulex.Adapters.DynamicPartitioned
+
+    use Nebulex.TestCache.Common
+  end
+
   defmodule Replicated do
     @moduledoc false
     use Nebulex.Cache,
@@ -203,6 +212,14 @@ defmodule Nebulex.TestCache do
     use Nebulex.Cache,
       otp_app: :nebulex,
       adapter: Nebulex.Adapters.Partitioned,
+      primary_storage_adapter: Nebulex.TestCache.AdapterMock
+  end
+
+  defmodule DynamicPartitionedMock do
+    @moduledoc false
+    use Nebulex.Cache,
+      otp_app: :nebulex,
+      adapter: Nebulex.Adapters.DynamicPartitioned,
       primary_storage_adapter: Nebulex.TestCache.AdapterMock
   end
 
