@@ -531,6 +531,7 @@ defmodule Nebulex.Adapters.Local do
 
   @impl true
   defspan delete(adapter_meta, key, _opts) do
+    IO.puts(Exception.format_stacktrace())
     adapter_meta.meta_tab
     |> list_gen()
     |> Enum.each(&adapter_meta.backend.delete(&1, key))

@@ -334,6 +334,30 @@ defmodule Nebulex.Adapters.DynamicPartitioned do
         use Nebulex.Cache,
           otp_app: unquote(otp_app),
           adapter: unquote(primary)
+
+        def rebalance(adapter_meta) do
+          node = node()
+          records = Nebulex.Adapters.DynamicPartitioned.all_on_partition(adapter_meta, [])
+
+          Enum.map(records, fn {key, value} = record ->
+            {record, Cluster.get_node(adapter_meta.name, key, adapter_meta.keyslot)}
+          end)
+          |> Enum.reduce([], fn
+            {record, ^node}, acc ->
+              acc
+
+            {record, _new_node}, acc ->
+              [record | acc]
+          end)
+
+          Nebulex.Adapters.DynamicPartitioned.put_all(adapter_meta, records, :infinity, :put, [])
+
+          Nebulex.Adapters.DynamicPartitioned.remove_from_partition(
+            adapter_meta,
+            Enum.map(records, fn {key, value} -> key end),
+            []
+          )
+        end
       end
 
       @doc """
@@ -577,6 +601,37 @@ defmodule Nebulex.Adapters.DynamicPartitioned do
 
   ## Nebulex.Adapter.Queryable
 
+  defspan rebalance(adapter_meta, opts) do
+    reducer = &List.flatten/1
+    operation = :rebalance
+
+    adapter_meta.task_sup
+    |> RPC.multi_call(
+      Cluster.get_nodes(adapter_meta.name),
+      __MODULE__,
+      :with_dynamic_cache,
+      [adapter_meta, operation, [adapter_meta]],
+      opts
+    )
+    |> handle_rpc_multi_call(operation, reducer)
+  end
+
+  defspan remove_from_partition(adapter_meta, keys, opts) do
+    Enum.map(keys, fn key ->
+      # Nebulex.Adapters.Local.delete(adapter_meta, key, [])
+      # call(adapter_meta, key, :delete, [key, opts], opts)
+
+      # eval_stream(adapter_meta, :delete, [key, opts])
+      # rpc_call(node(), adapter_meta, :delete, [key, opts], opts)
+
+      # adapter_meta.cache.__primary__().delete(key, [])
+      # adapter_meta.primary_name.delete(key, opts)
+
+      # with_dynamic_cache(adapter_meta, :delete, [key, opts])
+      # |> IO.inspect()
+    end)
+  end
+
   defspan all_on_partition(adapter_meta, opts) do
     rpc_call(
       adapter_meta.task_sup,
@@ -586,9 +641,6 @@ defmodule Nebulex.Adapters.DynamicPartitioned do
       [adapter_meta, nil, [return: {:key, :value}]],
       opts
     )
-    |> IO.inspect()
-
-    IO.puts("#{inspect(adapter_meta)} all_on_partition")
   end
 
   @impl true
@@ -773,7 +825,7 @@ defmodule Nebulex.Adapters.DynamicPartitioned.Bootstrap do
   alias Nebulex.Cache.Cluster
   alias Nebulex.Telemetry
 
-  # Default join timeout
+  # Default join timeou
   @join_timeout :timer.seconds(180)
 
   # State
@@ -838,7 +890,17 @@ defmodule Nebulex.Adapters.DynamicPartitioned.Bootstrap do
     # Ensure leaving the cluster when the cache stops
     :ok = Cluster.leave(adapter_meta.name)
 
-    Nebulex.Adapters.DynamicPartitioned.all_on_partition(adapter_meta, [])
+    unless Cluster.get_nodes(adapter_meta.name) |> Enum.empty?() do
+      Nebulex.Adapters.DynamicPartitioned.rebalance(adapter_meta, [])
+
+      records =
+        Nebulex.Adapters.DynamicPartitioned.all_on_partition(adapter_meta, [])
+        |> IO.inspect(label: node())
+
+      Nebulex.Adapters.DynamicPartitioned.put_all(adapter_meta, records, :infinity, :put, [])
+      |> IO.inspect(label: :put)
+    end
+
     IO.puts("Stopping on #{inspect({node()})}")
     # Bootstrap stopped or terminated
     :ok = dispatch_telemetry_event(:stopped, adapter_meta, %{reason: reason})

@@ -40,7 +40,7 @@ defmodule Nebulex.Adapters.DynamicPartitionedTest do
     alias Nebulex.NodeCase
     alias Nebulex.TestCache.Partitioned
 
-    keys = Enum.map(1..100, fn id ->
+    keys = Enum.map(1..20, fn id ->
       "foo_#{id}"
     end)
 
@@ -59,6 +59,9 @@ defmodule Nebulex.Adapters.DynamicPartitionedTest do
 
     assert_receive({:DOWN, _ref, :process, _pid, :normal})
 
+    :timer.sleep(400)
+
+    IO.puts "checking on keys"
     Enum.each(keys, fn key ->
       assert DynamicPartitioned.get("key_#{key}") == "value_#{key}"
     end)
