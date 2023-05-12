@@ -845,6 +845,8 @@ defmodule Nebulex.Adapters.DynamicPartitioned.Bootstrap do
     # Ensure joining the cluster when the cache supervision tree is started
     :ok = Cluster.join(adapter_meta.name)
 
+    Nebulex.Adapters.DynamicPartitioned.rebalance(adapter_meta, [])
+
     # Bootstrap joined the cache to the cluster
     :ok = dispatch_telemetry_event(:joined, adapter_meta)
 
@@ -878,15 +880,16 @@ defmodule Nebulex.Adapters.DynamicPartitioned.Bootstrap do
   @impl true
   def terminate(reason, %__MODULE__{adapter_meta: adapter_meta}) do
     # Ensure leaving the cluster when the cache stops
+
     :ok = Cluster.leave(adapter_meta.name)
 
     unless Cluster.get_nodes(adapter_meta.name) |> Enum.empty?() do
-      Nebulex.Adapters.DynamicPartitioned.rebalance(adapter_meta, [])
-
       records =
         Nebulex.Adapters.DynamicPartitioned.all_on_partition(adapter_meta, [])
 
       Nebulex.Adapters.DynamicPartitioned.put_all(adapter_meta, records, :infinity, :put, [])
+
+      Nebulex.Adapters.DynamicPartitioned.rebalance(adapter_meta, [])
     end
 
     # Bootstrap stopped or terminated
