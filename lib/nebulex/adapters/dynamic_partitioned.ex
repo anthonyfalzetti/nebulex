@@ -340,15 +340,8 @@ defmodule Nebulex.Adapters.DynamicPartitioned do
           records = Nebulex.Adapters.DynamicPartitioned.all_on_partition(adapter_meta, [])
 
           records_to_move =
-            Enum.map(records, fn {key, value} = record ->
-              {record, Cluster.get_node(adapter_meta.name, key, adapter_meta.keyslot)}
-            end)
-            |> Enum.reduce([], fn
-              {record, ^node}, acc ->
-                acc
-
-              {record, _new_node}, acc ->
-                [record | acc]
+            Enum.reject(records, fn {key, value} = record ->
+              Cluster.get_node(adapter_meta.name, key, adapter_meta.keyslot) == node
             end)
 
           Nebulex.Adapters.DynamicPartitioned.put_all(
