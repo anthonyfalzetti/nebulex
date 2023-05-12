@@ -339,22 +339,29 @@ defmodule Nebulex.Adapters.DynamicPartitioned do
           node = node()
           records = Nebulex.Adapters.DynamicPartitioned.all_on_partition(adapter_meta, [])
 
-          Enum.map(records, fn {key, value} = record ->
-            {record, Cluster.get_node(adapter_meta.name, key, adapter_meta.keyslot)}
-          end)
-          |> Enum.reduce([], fn
-            {record, ^node}, acc ->
-              acc
+          records_to_move =
+            Enum.map(records, fn {key, value} = record ->
+              {record, Cluster.get_node(adapter_meta.name, key, adapter_meta.keyslot)}
+            end)
+            |> Enum.reduce([], fn
+              {record, ^node}, acc ->
+                acc
 
-            {record, _new_node}, acc ->
-              [record | acc]
-          end)
+              {record, _new_node}, acc ->
+                [record | acc]
+            end)
 
-          Nebulex.Adapters.DynamicPartitioned.put_all(adapter_meta, records, :infinity, :put, [])
+          Nebulex.Adapters.DynamicPartitioned.put_all(
+            adapter_meta,
+            records_to_move,
+            :infinity,
+            :put,
+            []
+          )
 
           Nebulex.Adapters.DynamicPartitioned.remove_from_partition(
             adapter_meta,
-            Enum.map(records, fn {key, value} -> key end),
+            Enum.map(records_to_move, fn {key, value} -> key end),
             []
           )
         end
@@ -627,8 +634,8 @@ defmodule Nebulex.Adapters.DynamicPartitioned do
       # adapter_meta.cache.__primary__().delete(key, [])
       # adapter_meta.primary_name.delete(key, opts)
 
-      # with_dynamic_cache(adapter_meta, :delete, [key, opts])
-      # |> IO.inspect()
+      with_dynamic_cache(adapter_meta, :delete, [key, opts])
+      |> IO.inspect()
     end)
   end
 
